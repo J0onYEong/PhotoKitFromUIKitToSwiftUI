@@ -9,7 +9,6 @@ import UIKit
 import Photos
 import PhotosUI
 
-
 public class CJCollectionViewController: UICollectionViewController {
     
     var fetchedAssets: PHFetchResult<PHAsset>!
@@ -48,6 +47,7 @@ public extension CJCollectionViewController {
         super.viewDidLoad()
         
         collectionView?.register(CJCollectionViewCell.self, forCellWithReuseIdentifier: String(describing: CJCollectionViewCell.self))
+        collectionView?.register(CJCameraImageCell.self, forCellWithReuseIdentifier: String(describing: CJCameraImageCell.self))
         
         fetchPhotos()
     
@@ -120,19 +120,39 @@ public extension CJCollectionViewController {
     // CollectionView에 표시되는 아이템의 수 번환
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         
-        return self.fetchedAssets.count
+        return 1 + self.fetchedAssets.count
         
     }
     
     override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         
-        let asset = fetchedAssets.object(at: indexPath.item)
+        // 카메라 버튼일 경우
+        if indexPath.item == 0 {
+            
+            let cellIdentifier = String(describing: CJCameraImageCell.self)
+            
+            guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: cellIdentifier, for: indexPath) as? CJCameraImageCell else {
+                
+                preconditionFailure("Camera Image Cell을 생성할 수 없습니다.")
+                
+            }
+            
+            cell.setUp()
+            
+            return cell
+            
+        }
+        
+        
+        // 일반 이미지 셀인 경우
+        
+        let asset = fetchedAssets.object(at: indexPath.item-1)
         
         let cellIdentifier = String(describing: CJCollectionViewCell.self)
         
         guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: cellIdentifier, for: indexPath) as? CJCollectionViewCell else {
             
-            preconditionFailure("Cell을 생성할 수 없습니다.")
+            preconditionFailure("Iamge Cell을 생성할 수 없습니다.")
             
         }
         

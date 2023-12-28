@@ -9,8 +9,6 @@ import UIKit
 
 class CJCollectionViewCell: UICollectionViewCell {
     
-    static let reusableId: String = "CJCollectionViewCell"
-    
     var thumbNailImageView = UIImageView()
     var livePhotoIconImageView = UIImageView()
     
@@ -39,6 +37,8 @@ class CJCollectionViewCell: UICollectionViewCell {
         self.addSubview(thumbNailImageView)
         self.addSubview(livePhotoIconImageView)
         
+        self.bringSubviewToFront(livePhotoIconImageView)
+        
         thumbNailImageView.translatesAutoresizingMaskIntoConstraints = false
         livePhotoIconImageView.translatesAutoresizingMaskIntoConstraints = false
         
@@ -55,17 +55,6 @@ class CJCollectionViewCell: UICollectionViewCell {
             
         ])
         
-    }
-    
-}
-
-// MARK: - nib파일로 부터 타입이로드된 이후
-extension CJCollectionViewCell {
-    
-    // Nib파일로 부터 로드된 이후 호출
-    override func awakeFromNib() {
-        super.awakeFromNib()
-        // Initialization code
     }
     
 }
