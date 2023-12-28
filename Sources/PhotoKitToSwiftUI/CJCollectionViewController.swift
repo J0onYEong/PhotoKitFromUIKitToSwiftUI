@@ -281,3 +281,25 @@ extension CJCollectionViewController {
     }
     
 }
+
+
+// MARK: - Change Observer
+extension CJCollectionViewController: PHPhotoLibraryChangeObserver {
+    
+    public func photoLibraryDidChange(_ changeInstance: PHChange) {
+        
+        guard let changes = changeInstance.changeDetails(for: self.fetchedAssets) else { return }
+        
+        // 옵저버가 매서드를 main이 아닌 쓰레드에소 호출할 수 있음으로 UI업데이트를 위해 main쓰래드에서 호출
+        DispatchQueue.main.sync {
+            
+            fetchedAssets = changes.fetchResultAfterChanges
+            
+            collectionView?.reloadData()
+            
+        }
+        
+        
+    }
+    
+}
