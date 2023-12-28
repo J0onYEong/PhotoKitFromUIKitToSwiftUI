@@ -11,21 +11,22 @@ import PhotosUI
 
 public class CJCollectionViewController: UICollectionViewController {
     
-    var fetchedAssets: PHFetchResult<PHAsset>!
-    
+    // Cell아이템 설정들
     var availableWidth: CGFloat = 0.0
-    
     let horizontalSpacingBetweenItems: CGFloat = 1.0
     let verticalSpacingBetweenItems: CGFloat = 1.0
-    
     let itemCountForRow: Int = 3
-    
     var thumbNailSize: CGSize!
     
-    let imageManager = PHImageManager()
-    
+    // 레이아웃
     let flowLayout = UICollectionViewFlowLayout()
     
+    // 캐싱및 이미지 불러오기
+    var fetchedAssets: PHFetchResult<PHAsset>!
+    let imageManager = PHCachingImageManager()
+    var previousPreheatRect: CGRect = .zero
+    
+     
     public init() {
         
         super.init(collectionViewLayout: self.flowLayout)
@@ -46,9 +47,14 @@ public extension CJCollectionViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        // 재사용 Cell타입들을 등록
         collectionView?.register(CJCollectionViewCell.self, forCellWithReuseIdentifier: String(describing: CJCollectionViewCell.self))
         collectionView?.register(CJCameraImageCell.self, forCellWithReuseIdentifier: String(describing: CJCameraImageCell.self))
         
+        // 캐싱 초기화
+        resetCachedAssets()
+        
+        // 사진 불러오기
         fetchPhotos()
     
     }
@@ -87,6 +93,13 @@ public extension CJCollectionViewController {
         
         self.thumbNailSize = CGSize(width: tnWidth, height: tnHeight)
         
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        // 뷰가 화면에 나타난 이후에 호출
+        updateCachedAssets()
     }
     
 }
@@ -175,6 +188,95 @@ public extension CJCollectionViewController {
         cell.setUp()
         
         return cell
+        
+    }
+    
+}
+
+
+// MARK: - Caching
+extension CJCollectionViewController {
+    
+    fileprivate func resetCachedAssets() {
+        imageManager.stopCachingImagesForAllAssets()
+        previousPreheatRect = .zero
+    }
+    
+    fileprivate func updateCachedAssets() {
+        // Update only if the view is visible.
+        guard isViewLoaded && view.window != nil else { return }
+        
+        // 현재보이는 공간을 의미한다.
+        let visibleRect = CGRect(origin: collectionView!.contentOffset, size: collectionView!.bounds.size)
+        
+        // 현재보이는 영역의 위아래 2배공간을 의미한다.
+        let preheatRect = visibleRect.insetBy(dx: 0, dy: -0.5 * visibleRect.height)
+        
+        // 이전에 보였던 뷰와 현재 보이는 뷰의 Y값 변화량
+        let delta = abs(preheatRect.midY - previousPreheatRect.midY)
+        guard delta > view.bounds.height / 3 else { return }
+        
+        // 이전에 보였던 뷰와 현재뷰의 CGRect정보를 바탕으로 사라질 부분과 새롭게 생겨나는 부분을 CGRect로 계산한다.
+        let (addedRects, removedRects) = differencesBetweenRects(previousPreheatRect, preheatRect)
+        
+        let addedAssets = addedRects
+            .flatMap { rect in collectionView!.indexPathsForVisibleItems.filter { rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) } }
+            .map { indexPath in fetchedAssets.object(at: indexPath.item) }
+
+        let removedAssets = removedRects
+            .flatMap { rect in collectionView!.indexPathsForVisibleItems.filter { rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) } }
+            .map { indexPath in fetchedAssets.object(at: indexPath.item) }
+
+        
+        // PHCachingImageManager인스턴스가 캐싱하는 에셋을 업데이트 한다.
+        imageManager.startCachingImages(for: addedAssets,
+                                        targetSize: thumbNailSize, contentMode: .aspectFill, options: nil)
+        imageManager.stopCachingImages(for: removedAssets,
+                                       targetSize: thumbNailSize, contentMode: .aspectFill, options: nil)
+        
+        // 현재 가동중인 영역을 저장한다.
+        previousPreheatRect = preheatRect
+    }
+    
+    fileprivate func differencesBetweenRects(_ old: CGRect, _ new: CGRect) -> (added: [CGRect], removed: [CGRect]) {
+        if old.intersects(new) {
+            var added = [CGRect]()
+            
+            // 새로운 영역이 예전 영역보다 아래에 있는 경우
+            if new.maxY > old.maxY {
+                
+                // origin은 Rectangle의 시작점 좌표로 좌측상단을 의미한다.
+                added += [CGRect(x: new.origin.x, y: old.maxY,
+                                 width: new.width, height: new.maxY - old.maxY)]
+            }
+            if old.minY > new.minY {
+                added += [CGRect(x: new.origin.x, y: new.minY,
+                                 width: new.width, height: old.minY - new.minY)]
+            }
+            var removed = [CGRect]()
+            if new.maxY < old.maxY {
+                removed += [CGRect(x: new.origin.x, y: new.maxY,
+                                   width: new.width, height: old.maxY - new.maxY)]
+            }
+            if old.minY < new.minY {
+                removed += [CGRect(x: new.origin.x, y: old.minY,
+                                   width: new.width, height: new.minY - old.minY)]
+            }
+            return (added, removed)
+        } else {
+            return ([new], [old])
+        }
+    }
+}
+
+
+// MARK: - ScrollView
+extension CJCollectionViewController {
+    
+    public override func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        
+        //스크롤을 할 때마다 캐싱 업데이트 여부를 확인한다.
+        updateCachedAssets()
         
     }
     
