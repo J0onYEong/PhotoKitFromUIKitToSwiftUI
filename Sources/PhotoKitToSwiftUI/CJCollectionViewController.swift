@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SwiftUI
 import Photos
 import PhotosUI
 
@@ -26,16 +27,23 @@ public class CJCollectionViewController: UICollectionViewController {
     let imageManager = PHCachingImageManager()
     var previousPreheatRect: CGRect = .zero
     
+    // 셀 선택하기
+    var selectedCell: UICollectionViewCell?
+    @Binding var imageInformation: ImageInformation?
      
-    public init() {
+    public init(imageInformation: Binding<ImageInformation?>) {
+        
+        self._imageInformation = imageInformation
         
         super.init(collectionViewLayout: self.flowLayout)
         
+        
     }
     
-    public required init?(coder: NSCoder) { 
-        super.init(coder: coder)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
+    
     
 }
 
@@ -219,14 +227,30 @@ extension CJCollectionViewController {
         // 이전에 보였던 뷰와 현재뷰의 CGRect정보를 바탕으로 사라질 부분과 새롭게 생겨나는 부분을 CGRect로 계산한다.
         let (addedRects, removedRects) = differencesBetweenRects(previousPreheatRect, preheatRect)
         
+        print(addedRects)
+        
         let addedAssets = addedRects
-            .flatMap { rect in collectionView!.indexPathsForVisibleItems.filter { rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) } }
-            .map { indexPath in fetchedAssets.object(at: indexPath.item) }
+            .flatMap { rect in
+                collectionView!.indexPathsForVisibleItems.filter {
+                    
+                    // 카메라 셀은 캐싱에서 배제한다
+                    rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) && $0.item != 0
+                    
+                }
+            }
+            .map { indexPath in
+                fetchedAssets.object(at: indexPath.item-1)
+            }
 
         let removedAssets = removedRects
-            .flatMap { rect in collectionView!.indexPathsForVisibleItems.filter { rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) } }
-            .map { indexPath in fetchedAssets.object(at: indexPath.item) }
-
+            .flatMap { rect in 
+                collectionView!.indexPathsForVisibleItems.filter {
+                    
+                    rect.contains(collectionView!.layoutAttributesForItem(at: $0)!.frame) && $0.item != 0
+                    
+                }
+            }
+            .map { indexPath in fetchedAssets.object(at: indexPath.item-1) }
         
         // PHCachingImageManager인스턴스가 캐싱하는 에셋을 업데이트 한다.
         imageManager.startCachingImages(for: addedAssets,
@@ -299,6 +323,49 @@ extension CJCollectionViewController: PHPhotoLibraryChangeObserver {
             
         }
         
+        
+    }
+    
+}
+
+
+// MARK: - Cell선택
+extension CJCollectionViewController {
+
+    public override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        
+        selectedCell = collectionView.cellForItem(at: indexPath)
+        
+        if let cameraCell = selectedCell as? CJCameraImageCell {
+            
+            print("카메라 선택됨")
+            
+            return
+        }
+        
+        if let imageCell = selectedCell as? CJCollectionViewCell {
+            
+            let localIdentifier = imageCell.representedAssetId!
+        
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: .none).firstObject else {
+                preconditionFailure("localIdentifier로 이미지 가져오기 실패")
+            }
+            
+            imageManager.requestImageDataAndOrientation(for: asset, options: .none) { data, imageName, orientation, _ in
+                
+                guard let imageData = data, let uiImage = UIImage(data: imageData) else {
+                    preconditionFailure("image data가져오기 실패")
+                }
+                
+                let imageInfo = ImageInformation(image: uiImage, orientation: orientation)
+                
+                DispatchQueue.main.async {
+                    self.imageInformation = imageInfo
+                }
+            }
+            
+            return
+        }
         
     }
     
