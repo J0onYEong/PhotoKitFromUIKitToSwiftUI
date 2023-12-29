@@ -9,6 +9,7 @@ import UIKit
 import SwiftUI
 import Photos
 import PhotosUI
+import Combine
 
 public class CJCollectionViewController: UICollectionViewController {
     
@@ -27,23 +28,18 @@ public class CJCollectionViewController: UICollectionViewController {
     let imageManager = PHCachingImageManager()
     var previousPreheatRect: CGRect = .zero
     
-    // 셀 선택하기
-    var selectedCell: UICollectionViewCell?
-    @Binding var imageInformation: ImageInformation?
+    // 선택된 셀을 전송할 퍼블리셔
+    let pub = PassthroughSubject<ImageInformation?, Never>()
      
-    public init(imageInformation: Binding<ImageInformation?>) {
-        
-        self._imageInformation = imageInformation
+    public init() {
         
         super.init(collectionViewLayout: self.flowLayout)
-        
         
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
     
 }
 
@@ -334,7 +330,7 @@ extension CJCollectionViewController {
 
     public override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         
-        selectedCell = collectionView.cellForItem(at: indexPath)
+        let selectedCell = collectionView.cellForItem(at: indexPath)
         
         if let cameraCell = selectedCell as? CJCameraImageCell {
             
@@ -359,9 +355,7 @@ extension CJCollectionViewController {
                 
                 let imageInfo = ImageInformation(image: uiImage, orientation: orientation)
                 
-                DispatchQueue.main.async {
-                    self.imageInformation = imageInfo
-                }
+                self.pub.send(imageInfo)
             }
             
             return
